@@ -389,7 +389,33 @@ class OedSource:
                 read_params = {'keep_default_na': False,
                                'na_values': PANDAS_DEFAULT_NULL_VALUES.difference({'NA'})}
                 read_params.update(source.get('read_param', {}))
-                oed_df = self.read_csv(filepath, self.exposure.get_input_fields(self.oed_type), filter=self.filters, **read_params)
+                
+                if source.get('engine'):
+                    header_read_arg = {**read_params, 'nrows': 0, 'index_col': False}
+                    header = get_df_reader(
+                        source,
+                        **header_read_arg
+                    )
+                    
+                    header = header.as_pandas().columns
+
+                    # match header column name to oed field name and prepare pd_dtype used to read the data
+                    pd_dtype = {}
+                    column_to_field = OedSchema.column_to_field(header, ods_fields)
+                    for col in header:
+                        if col in column_to_field:
+                            field_info = column_to_field[col]
+                            pd_dtype[col] = field_info['pd_dtype']
+                        else:
+                            pd_dtype[col] = 'category'
+
+                    oed_df = get_df_reader(
+                        source,
+                        dtype=pd_dtype,
+                        **read_params
+                    ).filter(self.filters).as_pandas()
+                else:
+                    oed_df = self.read_csv(filepath, self.exposure.get_input_fields(self.oed_type), filter=self.filters, **read_params)
         else:
             raise Exception(f"Source type {source['source_type']} is not supported")
 
